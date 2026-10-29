@@ -1,26 +1,117 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-ink: #17111f;
+  --color-plum: #241a31;
+  --color-dusk: #3a2a4d;
+  --color-cream: #fff6ea;
+  --color-sand: #f3dcc0;
+  --color-coral: #ff7a59;
+  --color-blossom: #ff8fab;
+  --color-gold: #ffd166;
+  --color-sea: #5fd4c4;
+  --color-sky: #7fb7ff;
+  --color-violet: #9b8cff;
+  --color-moss: #7ee0b5;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --animate-rise: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-fade: fade 0.35s ease both;
+  --animate-drawer: drawer 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-nudge: nudge 1.6s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes drawer {
+    from { opacity: 0; transform: translateX(28px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes nudge {
+    0%, 100% { transform: translateY(0); opacity: 0.75; }
+    50% { transform: translateY(7px); opacity: 1; }
+  }
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
   }
 }
 
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background: var(--color-ink);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ink);
+  color: var(--color-cream);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Frosted panel used by every overlay — readable first, decorative second. */
+.glass {
+  background: rgb(26 19 36 / 0.74);
+  border: 1px solid rgb(255 246 234 / 0.1);
+  box-shadow: 0 18px 50px -20px rgb(10 5 20 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+}
+
+.glass-light {
+  background: rgb(26 19 36 / 0.55);
+  border: 1px solid rgb(255 246 234 / 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.4rem;
+  border-radius: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-cream);
+  background: rgb(255 246 234 / 0.08);
+  border: 1px solid rgb(255 246 234 / 0.16);
+  border-bottom-width: 2px;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+}
+
+.scroll-soft {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 246 234 / 0.2) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
