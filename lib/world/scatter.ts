@@ -114,27 +114,28 @@ export function getScatter(): Scatter {
       const y = heightAt(x, z);
       const base = { x, y, z, rot: r2 * Math.PI * 2, tint: r3 };
 
+      // Colliders hug the trunks (base radius 0.26-0.3 x scale), so the car stops where it visibly touches.
       if ((nearHome || nearLake || nearGrove) && r1 < 0.32) {
         out.blossoms.push({ ...base, s: 0.85 + r3 * 0.5 });
-        addCircle(x, z, 0.55);
+        addCircle(x, z, 0.34 * (0.85 + r3 * 0.5));
       } else if (forest > 0.12 && !nearLight) {
         if (r1 < 0.78) {
           out.pines.push({ ...base, s: 0.75 + r3 * 0.75 });
-          addCircle(x, z, 0.9 * (0.75 + r3 * 0.75));
+          addCircle(x, z, 0.34 * (0.75 + r3 * 0.75));
         } else {
           out.roundTrees.push({ ...base, s: 0.8 + r3 * 0.6 });
-          addCircle(x, z, 0.55);
+          addCircle(x, z, 0.36 * (0.8 + r3 * 0.6));
         }
       } else if (forest > -0.12 && r1 < 0.16 && !nearLight) {
         if (r2 < 0.5) {
           out.roundTrees.push({ ...base, s: 0.8 + r3 * 0.6 });
-          addCircle(x, z, 0.55);
+          addCircle(x, z, 0.36 * (0.8 + r3 * 0.6));
         } else if (r2 < 0.65) {
           out.blossoms.push({ ...base, s: 0.8 + r3 * 0.5 });
-          addCircle(x, z, 0.55);
+          addCircle(x, z, 0.34 * (0.8 + r3 * 0.5));
         } else {
           out.pines.push({ ...base, s: 0.7 + r3 * 0.6 });
-          addCircle(x, z, 0.9 * (0.7 + r3 * 0.6));
+          addCircle(x, z, 0.34 * (0.7 + r3 * 0.6));
         }
       } else if (r1 < 0.12) {
         out.bushes.push({ ...base, s: 0.6 + r3 * 0.8 });

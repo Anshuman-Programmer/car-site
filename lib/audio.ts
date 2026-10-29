@@ -15,6 +15,7 @@ type Nodes = {
   engineFilter: BiquadFilterNode;
   waterGain: GainNode;
   windLfo: OscillatorNode;
+  noise: AudioBuffer;
   sources: AudioScheduledSourceNode[];
   birdTimer: number;
 };
@@ -99,7 +100,7 @@ function build(): Nodes | null {
   engineOsc2.start();
   sources.push(engineOsc, engineOsc2);
 
-  const n: Nodes = { ctx, master, engineGain, engineOsc, engineOsc2, engineFilter, waterGain, windLfo, sources, birdTimer: 0 };
+  const n: Nodes = { ctx, master, engineGain, engineOsc, engineOsc2, engineFilter, waterGain, windLfo, noise, sources, birdTimer: 0 };
   n.birdTimer = window.setInterval(() => chirp(n), 2600);
   return n;
 }
@@ -171,6 +172,25 @@ export const audio = {
     o.connect(g).connect(master);
     o.start(t);
     o.stop(t + 0.22);
+  },
+  /** Something breaking: a thud plus a short crackle of splintering. */
+  smash(strength: number) {
+    if (!nodes || !enabled) return;
+    const { ctx, master, noise } = nodes;
+    const t = ctx.currentTime;
+    audio.bump(Math.min(1, strength + 0.2));
+    const src = ctx.createBufferSource();
+    src.buffer = noise;
+    src.playbackRate.value = 3.5;
+    const f = ctx.createBiquadFilter();
+    f.type = "highpass";
+    f.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5 * strength, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    src.connect(f).connect(g).connect(master);
+    src.start(t, Math.random());
+    src.stop(t + 0.3);
   },
   chime(kind: "open" | "discover" = "open") {
     if (!nodes || !enabled) return;

@@ -146,6 +146,35 @@ export const ROADS: RoadDef[] = [
     ],
   },
   {
+    id: "offroad-spur",
+    kind: "dirt",
+    closed: false,
+    width: 5,
+    snapStart: true,
+    points: [
+      [-59, -34],
+      [-68, -35],
+      [-76, -35],
+    ],
+  },
+  {
+    id: "offroad",
+    kind: "dirt",
+    closed: true,
+    width: 6,
+    points: [
+      [-76, -35],
+      [-78, -45],
+      [-86, -51],
+      [-97, -50],
+      [-104, -42],
+      [-105, -31],
+      [-99, -22],
+      [-89, -19],
+      [-80, -24],
+    ],
+  },
+  {
     id: "secret",
     kind: "dirt",
     closed: false,
@@ -189,6 +218,9 @@ export const HILLS: [number, number, number, number][] = [
   [95, 30, 2.5, 18],
   [-10, -100, 3, 18],
 ];
+
+/** Off-road park on the western hill: a dirt loop with rocks, jumps and smashable props. */
+export const COURSE = { x: -90, z: -35, radius: 20 };
 
 /** Car start: on the loop just east of Home Base, facing east. */
 export const START: { x: number; z: number; heading: number } = { x: 6, z: 61, heading: Math.PI / 2 };

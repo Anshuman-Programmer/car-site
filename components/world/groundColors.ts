@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { GRID, getWorld } from "@/lib/world/terrain";
-import { LAKE_CENTER, LAKE_LEVEL, lakeRadius, WORLD_HALF } from "@/lib/world/layout";
+import { GRID, coastT, getWorld } from "@/lib/world/terrain";
+import { COURSE, LAKE_CENTER, LAKE_LEVEL, lakeRadius, PADS, WORLD_HALF } from "@/lib/world/layout";
+import { exclusionZones } from "@/lib/world/structures";
 import { fbm, smoothstep } from "@/lib/world/noise";
 import { palette } from "./materials";
 
@@ -10,6 +11,8 @@ export interface Ground {
   /** 0..1 per grid vertex: how much the ground reads as grass. */
   grassy: Float32Array;
 }
+
+const UNDER_GRASS = new THREE.Color("#3a8f28");
 
 let cached: Ground | null = null;
 
@@ -41,9 +44,16 @@ export function getGround(): Ground {
       c.lerp(palette.meadow, smoothstep(0.55, 0.85, n2) * smoothstep(-20, 60, z) * 0.6);
       c.lerp(palette.forestFloor, smoothstep(0.2, 0.8, -z / 120) * 0.45);
 
-      // Dusty shoulders along the roads.
+      // Strong green wherever grass grows, so the ground between blades reads as grass, not soil.
       const re = roadEdge[k];
+      c.lerp(UNDER_GRASS, smoothstep(0.3, 2.5, re) * 0.85);
+
+      // Dusty shoulders along the roads.
       c.lerp(palette.dirt, (1 - smoothstep(-0.5, 2.6, re)) * 0.55);
+
+      // The off-road park is churned-up dirt, patchy toward its edge.
+      const park = 1 - smoothstep(COURSE.radius - 4, COURSE.radius + 3, Math.hypot(x - COURSE.x, z - COURSE.z));
+      c.lerp(palette.dirt, park * (0.45 + n1 * 0.2));
 
       // Sand on the lake shore and the beach.
       const ldx = x - LAKE_CENTER[0];
@@ -74,4 +84,44 @@ export function getGround(): Ground {
 
   cached = { colors, grassy };
   return cached;
+}
+
+let densityCache: Float32Array | null = null;
+
+/** Where blades may grow: grassy ground away from water, buildings and the stream. */
+export function getGrassDensity() {
+  if (densityCache) return densityCache;
+  const { grassy } = getGround();
+  const { stream, fallIndex } = getWorld();
+  const zones = exclusionZones();
+  const wet = stream.slice(0, fallIndex + 3);
+  const cell = (WORLD_HALF * 2) / (GRID - 1);
+  const out = new Float32Array(GRID * GRID);
+  for (let j = 0; j < GRID; j++) {
+    for (let i = 0; i < GRID; i++) {
+      const k = j * GRID + i;
+      let d = grassy[k];
+      if (d <= 0) continue;
+      const x = i * cell - WORLD_HALF;
+      const z = j * cell - WORLD_HALF;
+      d *= 1 - smoothstep(0.86, 0.9, coastT(x, z).t);
+      const lx = x - LAKE_CENTER[0];
+      const lz = z - LAKE_CENTER[1];
+      d *= smoothstep(1.14, 1.3, Math.hypot(lx, lz) / lakeRadius(Math.atan2(lz, lx)));
+      for (const [zx, zz, r] of zones) d *= smoothstep(r * 0.8, r, Math.hypot(x - zx, z - zz));
+      for (const p of PADS) d *= smoothstep(p.r * 0.8, p.r + 0.5, Math.hypot(x - p.x, z - p.z));
+      if (d > 0) {
+        let sd = Infinity;
+        for (let n = 0; n < wet.length; n += 2) sd = Math.min(sd, Math.abs(wet[n].x - x) + Math.abs(wet[n].z - z));
+        if (sd < 9) {
+          sd = Infinity;
+          for (const s of wet) sd = Math.min(sd, Math.hypot(s.x - x, s.z - z));
+          d *= smoothstep(3.6, 5.6, sd);
+        }
+      }
+      out[k] = d;
+    }
+  }
+  densityCache = out;
+  return out;
 }

@@ -8,6 +8,8 @@ import { heightAt } from "@/lib/world/terrain";
 import type { Instance } from "@/lib/world/scatter";
 import { paint } from "./materials";
 import { InstancedSet } from "./Vegetation";
+import { breakKey } from "@/lib/world/breakables";
+import { useBrokenProps } from "./useBreakables";
 
 const WOOD = "#c8875a";
 const FRAME = "#3d4a6b";
@@ -49,15 +51,17 @@ function lanternGeometry() {
 }
 
 export function Props() {
+  const broken = useBrokenProps();
   const items = useMemo(() => {
     const seats: Instance[] = [];
     const lanterns: Instance[] = [];
-    for (const b of benches()) {
-      seats.push({ x: b.x, y: heightAt(b.x, b.z), z: b.z, s: 1, rot: b.yaw, tint: 0 });
-      lanterns.push({ x: b.lantern.x, y: heightAt(b.lantern.x, b.lantern.z), z: b.lantern.z, s: 1, rot: b.yaw, tint: 0 });
-    }
+    // Broken ones collapse to zero scale; Debris draws their pieces.
+    benches().forEach((b, i) => {
+      seats.push({ x: b.x, y: heightAt(b.x, b.z), z: b.z, s: broken.has(breakKey("bench", i)) ? 0 : 1, rot: b.yaw, tint: 0 });
+      lanterns.push({ x: b.lantern.x, y: heightAt(b.lantern.x, b.lantern.z), z: b.lantern.z, s: broken.has(breakKey("lantern", i)) ? 0 : 1, rot: b.yaw, tint: 0 });
+    });
     return { seats, lanterns, glow: lanterns.map((l) => ({ ...l, y: l.y + 0.37 })) };
-  }, []);
+  }, [broken]);
 
   const assets = useMemo(() => {
     const flat = { vertexColors: true, flatShading: true, roughness: 0.75 };

@@ -59,8 +59,8 @@ export function DriveTips({ touch, onDone }: { touch: boolean; onDone: () => voi
         <p className="font-display text-xl font-bold">Explore the island</p>
         {touch ? (
           <p className="mt-2 text-sm text-cream/75">
-            Drag the pad on the left to steer, hold the pedals on the right. Pull up to a glowing ring and tap the prompt to step
-            inside.
+            Use the joystick at the bottom: push up to drive, down to brake or reverse, and sideways to steer. Pull up to a glowing
+            ring and tap the prompt to step inside.
           </p>
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-cream/75">

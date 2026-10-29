@@ -6,6 +6,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { getScatter, type Instance } from "@/lib/world/scatter";
 import { mulberry32 } from "@/lib/world/noise";
 import { makeWindMaterial, paint } from "./materials";
+import { DRAW_ORDER } from "./xray";
 
 // ------------------------------------------------------------------ geometry
 
@@ -259,7 +260,7 @@ function blossomTrunkGeometry() {
   ])!;
 }
 
-function rockGeometry(seed: number) {
+export function rockGeometry(seed: number) {
   const g = new THREE.DodecahedronGeometry(1, 0);
   const rand = mulberry32(seed);
   const p = g.getAttribute("position");
@@ -480,16 +481,19 @@ export function Vegetation({ quality }: { quality: "high" | "low" }) {
       <InstancedSet items={scatter.roundTrees} geometry={assets.roundGeo} material={assets.roundMat} colors={PALETTES.round} castShadow={!low} depthMaterial={assets.foliageDepthMat} />
       <InstancedSet items={scatter.blossoms} geometry={assets.blossomTrunkGeo} material={assets.blossomTrunkMat} colors={["#ffffff"]} castShadow={!low} />
       <InstancedSet items={scatter.blossoms} geometry={assets.blossomGeo} material={assets.blossomMat} colors={PALETTES.blossom} castShadow={!low} depthMaterial={assets.foliageDepthMat} />
-      <InstancedSet items={scatter.bushes} geometry={assets.bushGeo} material={assets.bushMat} colors={PALETTES.bush} depthMaterial={assets.foliageDepthMat} castShadow={!low} />
       <InstancedSet items={scatter.rocks} geometry={assets.rockGeo} material={assets.rockMat} colors={PALETTES.rock} castShadow={!low} />
       <InstancedSet items={scatter.cliffRocks} geometry={assets.cliffGeo} material={assets.rockMat} colors={PALETTES.cliff} scaleY={1.3} />
-      <InstancedSet items={scatter.grass} geometry={assets.grassGeo} material={assets.grassMat} colors={PALETTES.grass} count={low ? 3000 : undefined} />
-      <InstancedSet items={scatter.grassClumps} geometry={assets.clumpGeo} material={assets.clumpMat} colors={PALETTES.clump} count={low ? 6000 : undefined} />
-      <InstancedSet items={scatter.leaves} geometry={assets.leafGeo} material={assets.leafMat} colors={PALETTES.leaf} count={low ? 3000 : undefined} />
-      <InstancedSet items={scatter.pebbles} geometry={assets.pebbleGeo} material={assets.rockMat} colors={PALETTES.pebble} />
-      <InstancedSet items={scatter.flowers} geometry={assets.stemGeo} material={assets.stemMat} colors={["#ffffff"]} count={low ? 600 : undefined} />
-      <InstancedSet items={scatter.flowers} geometry={assets.headGeo} material={assets.headMat} colors={PALETTES.flower} count={low ? 600 : undefined} />
-      <InstancedSet items={scatter.mushrooms} geometry={assets.mushGeo} material={assets.mushMat} colors={PALETTES.mushroom} />
+      {/* Things the car drives through: drawn after it, so they never trigger its see-through outline. */}
+      <group renderOrder={DRAW_ORDER.clutter}>
+        <InstancedSet items={scatter.bushes} geometry={assets.bushGeo} material={assets.bushMat} colors={PALETTES.bush} depthMaterial={assets.foliageDepthMat} castShadow={!low} />
+        <InstancedSet items={scatter.grass} geometry={assets.grassGeo} material={assets.grassMat} colors={PALETTES.grass} count={low ? 3000 : undefined} />
+        <InstancedSet items={scatter.grassClumps} geometry={assets.clumpGeo} material={assets.clumpMat} colors={PALETTES.clump} count={low ? 6000 : undefined} />
+        <InstancedSet items={scatter.leaves} geometry={assets.leafGeo} material={assets.leafMat} colors={PALETTES.leaf} count={low ? 3000 : undefined} />
+        <InstancedSet items={scatter.pebbles} geometry={assets.pebbleGeo} material={assets.rockMat} colors={PALETTES.pebble} />
+        <InstancedSet items={scatter.flowers} geometry={assets.stemGeo} material={assets.stemMat} colors={["#ffffff"]} count={low ? 600 : undefined} />
+        <InstancedSet items={scatter.flowers} geometry={assets.headGeo} material={assets.headMat} colors={PALETTES.flower} count={low ? 600 : undefined} />
+        <InstancedSet items={scatter.mushrooms} geometry={assets.mushGeo} material={assets.mushMat} colors={PALETTES.mushroom} />
+      </group>
     </group>
   );
 }

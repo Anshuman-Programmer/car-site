@@ -568,6 +568,7 @@ function Wheel({
   material,
   x,
   z,
+  mountRef,
   spinRef,
   steerRef,
 }: {
@@ -575,14 +576,18 @@ function Wheel({
   material: THREE.Material;
   x: number;
   z: number;
+  mountRef: (m: THREE.Group | null) => void;
   spinRef: (m: THREE.Group | null) => void;
   steerRef?: (m: THREE.Group | null) => void;
 }) {
   return (
-    <group position={[x, WHEEL_R, z]} ref={steerRef}>
-      <group ref={spinRef}>
-        {/* Rim faces +x; mirror it for the left side. */}
-        <mesh geometry={geometry} material={material} scale={[x > 0 ? 1 : -1, 1, 1]} castShadow />
+    // The mount slides up and down with the suspension.
+    <group position={[x, WHEEL_R, z]} ref={mountRef}>
+      <group ref={steerRef}>
+        <group ref={spinRef}>
+          {/* Rim faces +x; mirror it for the left side. */}
+          <mesh geometry={geometry} material={material} scale={[x > 0 ? 1 : -1, 1, 1]} castShadow />
+        </group>
       </group>
     </group>
   );
@@ -590,16 +595,22 @@ function Wheel({
 
 export function CarModel({
   bodyRef,
+  wheelMount,
   wheelSpin,
   wheelSteer,
   brakeMat,
 }: {
   bodyRef: React.RefObject<THREE.Group | null>;
+  /** Front-left, front-right, rear-left, rear-right. */
+  wheelMount: React.RefObject<(THREE.Group | null)[]>;
   wheelSpin: React.RefObject<(THREE.Group | null)[]>;
   wheelSteer: React.RefObject<(THREE.Group | null)[]>;
   brakeMat: React.RefObject<(THREE.MeshStandardMaterial | null)[]>;
 }) {
   const { geo, mat } = useCarAssets();
+  const setMount = (i: number) => (m: THREE.Group | null) => {
+    wheelMount.current[i] = m;
+  };
   const setSpin = (i: number) => (m: THREE.Group | null) => {
     wheelSpin.current[i] = m;
   };
@@ -613,10 +624,10 @@ export function CarModel({
   const wheel = { geometry: geo.wheel, material: mat.trim };
   return (
     <group>
-      <Wheel {...wheel} x={WHEEL_X} z={WHEEL_Z} spinRef={setSpin(0)} steerRef={setSteer(0)} />
-      <Wheel {...wheel} x={-WHEEL_X} z={WHEEL_Z} spinRef={setSpin(1)} steerRef={setSteer(1)} />
-      <Wheel {...wheel} x={WHEEL_X} z={-WHEEL_Z} spinRef={setSpin(2)} />
-      <Wheel {...wheel} x={-WHEEL_X} z={-WHEEL_Z} spinRef={setSpin(3)} />
+      <Wheel {...wheel} x={WHEEL_X} z={WHEEL_Z} mountRef={setMount(0)} spinRef={setSpin(0)} steerRef={setSteer(0)} />
+      <Wheel {...wheel} x={-WHEEL_X} z={WHEEL_Z} mountRef={setMount(1)} spinRef={setSpin(1)} steerRef={setSteer(1)} />
+      <Wheel {...wheel} x={WHEEL_X} z={-WHEEL_Z} mountRef={setMount(2)} spinRef={setSpin(2)} />
+      <Wheel {...wheel} x={-WHEEL_X} z={-WHEEL_Z} mountRef={setMount(3)} spinRef={setSpin(3)} />
 
       <group ref={bodyRef}>
         <mesh geometry={geo.paint} material={mat.paint} castShadow />

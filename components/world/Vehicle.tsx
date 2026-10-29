@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { CarModel } from "./CarModel";
-import { createSim, resetVehicle, stepVehicle, vehicleConfig, type DriveInput, type VehicleSim } from "@/lib/vehiclePhysics";
+import { CarModel, WHEEL_R } from "./CarModel";
+import { addOccludedOutline, DRAW_ORDER } from "./xray";
+import { createSim, placeVehicle, resetVehicle, stepVehicle, vehicleConfig, type DriveInput, type VehicleSim } from "@/lib/vehiclePhysics";
 import { input, vehicle } from "@/lib/vehicleState";
 import { drivingEnabled, usePortfolio } from "@/lib/store";
+import { restoreBreakables } from "@/lib/world/breakables";
 import { nearestRoadSample } from "@/lib/world/terrain";
 import { START } from "@/lib/world/layout";
 import { audio } from "@/lib/audio";
@@ -18,6 +20,7 @@ export function Vehicle() {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const shadow = useRef<THREE.Group>(null);
+  const wheelMount = useRef<(THREE.Group | null)[]>([]);
   const wheelSpin = useRef<(THREE.Group | null)[]>([]);
   const wheelSteer = useRef<(THREE.Group | null)[]>([]);
   const stuckTimer = useRef(0);
@@ -25,6 +28,16 @@ export function Vehicle() {
   const brakeMat = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   const simRef = useRef<VehicleSim | null>(null);
   const driveRef = useRef<DriveInput>({ throttle: 0, brake: 0, steer: 0, handbrake: false });
+
+  // Outline the car wherever trees, buildings or hills hide it. Every group is tagged, since the nearest one sets draw order.
+  useLayoutEffect(() => {
+    const car = group.current;
+    if (!car) return;
+    car.traverse((o) => {
+      if ((o as THREE.Group).isGroup) o.renderOrder = DRAW_ORDER.car;
+    });
+    return addOccludedOutline(car, "#ffd166");
+  }, []);
 
   useFrame((_, dt) => {
     if (!simRef.current) simRef.current = startSim();
@@ -48,10 +61,7 @@ export function Vehicle() {
       const t = vehicle.teleportTo;
       vehicle.teleportTo = null;
       sim.safe = { x: t.x, z: t.z, heading: t.heading };
-      resetVehicle(sim);
-      sim.x = t.x;
-      sim.z = t.z;
-      sim.heading = t.heading;
+      placeVehicle(sim, t.x, t.z, t.heading);
     }
 
     if (vehicle.resetRequested) {
@@ -83,6 +93,11 @@ export function Vehicle() {
       audio.bump(sim.impact);
       sim.impact = 0;
     }
+    if (sim.smashed > 0.2) {
+      audio.smash(sim.smashed);
+      sim.smashed = 0;
+    }
+    restoreBreakables(sim.x, sim.z, sim.time);
 
     const g = group.current;
     if (g) {
@@ -90,10 +105,12 @@ export function Vehicle() {
       g.rotation.set(sim.pitch, sim.heading, sim.roll, "YXZ");
     }
     const b = body.current;
-    if (b) {
-      b.rotation.set(sim.bodyPitch, 0, sim.bodyRoll);
-      b.position.y = Math.abs(sim.forward) > 0.5 && !sim.onRoad ? Math.sin(performance.now() * 0.03) * 0.015 : 0;
-    }
+    if (b) b.position.y = Math.abs(sim.forward) > 0.5 && !sim.onRoad ? Math.sin(performance.now() * 0.03) * 0.015 : 0;
+    // Wheels follow the ground: up with compression, down to full droop in the air.
+    const sag = vehicleConfig.gravity / (4 * vehicleConfig.springK);
+    wheelMount.current.forEach((w, i) => {
+      if (w) w.position.y = WHEEL_R + Math.max(-0.22, Math.min(0.3, sim.comp[i] - sag)) / CAR_SCALE;
+    });
     for (const w of wheelSpin.current) if (w) w.rotation.x = sim.wheelSpin;
     for (const w of wheelSteer.current) if (w) w.rotation.y = -sim.steer;
     const braking = drive.brake > 0 && sim.forward > 0.3 ? 3.2 : 0.8;
@@ -108,7 +125,7 @@ export function Vehicle() {
     <>
       <group ref={group}>
         <group scale={CAR_SCALE}>
-          <CarModel bodyRef={body} wheelSpin={wheelSpin} wheelSteer={wheelSteer} brakeMat={brakeMat} />
+          <CarModel bodyRef={body} wheelMount={wheelMount} wheelSpin={wheelSpin} wheelSteer={wheelSteer} brakeMat={brakeMat} />
         </group>
       </group>
       <group ref={shadow} scale={CAR_SCALE}>

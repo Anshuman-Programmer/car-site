@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { vehicle } from "@/lib/vehicleState";
-import { GRID, getWorld, coastT, heightAt } from "@/lib/world/terrain";
-import { LAKE_CENTER, lakeRadius, PADS, WORLD_HALF } from "@/lib/world/layout";
-import { exclusionZones } from "@/lib/world/structures";
+import { GRID, getWorld, heightAt } from "@/lib/world/terrain";
+import { WORLD_HALF } from "@/lib/world/layout";
 import { mulberry32, smoothstep } from "@/lib/world/noise";
-import { getGround } from "./groundColors";
+import { getGround, getGrassDensity } from "./groundColors";
 import { sharedUniforms } from "./materials";
+import { DRAW_ORDER } from "./xray";
 
 /**
  * A dense carpet of individual blades that follows the camera. Blades live
@@ -37,52 +37,13 @@ const FOOTPRINT_REACH = Math.hypot(CAR_HALF_LENGTH, CAR_HALF_WIDTH) + FOOTPRINT_
 // Big enough to cover the locked camera's whole ground footprint (~42 m ahead, ~±30 m wide).
 const SETTINGS = {
   high: { blades: 80000, radius: 38, clippings: 70 },
-  low: { blades: 22000, radius: 28, clippings: 30 },
+  low: { blades: 32000, radius: 28, clippings: 30 },
 };
 
 // ------------------------------------------------------------------ baked data
 
-let densityCache: Float32Array | null = null;
-
-/** Where blades may grow: grassy ground away from water, buildings and the stream. */
-function getDensity() {
-  if (densityCache) return densityCache;
-  const { grassy } = getGround();
-  const { stream, fallIndex } = getWorld();
-  const zones = exclusionZones();
-  const wet = stream.slice(0, fallIndex + 3);
-  const out = new Float32Array(GRID * GRID);
-  for (let j = 0; j < GRID; j++) {
-    for (let i = 0; i < GRID; i++) {
-      const k = j * GRID + i;
-      let d = grassy[k];
-      if (d <= 0) continue;
-      const x = i * CELL - WORLD_HALF;
-      const z = j * CELL - WORLD_HALF;
-      d *= 1 - smoothstep(0.86, 0.9, coastT(x, z).t);
-      const lx = x - LAKE_CENTER[0];
-      const lz = z - LAKE_CENTER[1];
-      d *= smoothstep(1.14, 1.3, Math.hypot(lx, lz) / lakeRadius(Math.atan2(lz, lx)));
-      for (const [zx, zz, r] of zones) d *= smoothstep(r * 0.8, r, Math.hypot(x - zx, z - zz));
-      for (const p of PADS) d *= smoothstep(p.r * 0.8, p.r + 0.5, Math.hypot(x - p.x, z - p.z));
-      if (d > 0) {
-        let sd = Infinity;
-        for (let n = 0; n < wet.length; n += 2) sd = Math.min(sd, Math.abs(wet[n].x - x) + Math.abs(wet[n].z - z));
-        if (sd < 9) {
-          sd = Infinity;
-          for (const s of wet) sd = Math.min(sd, Math.hypot(s.x - x, s.z - z));
-          d *= smoothstep(3.6, 5.6, sd);
-        }
-      }
-      out[k] = d;
-    }
-  }
-  densityCache = out;
-  return out;
-}
-
 function densityAt(x: number, z: number) {
-  const arr = getDensity();
+  const arr = getGrassDensity();
   const gx = Math.min(Math.max((x + WORLD_HALF) / CELL, 0), GRID - 1.001);
   const gz = Math.min(Math.max((z + WORLD_HALF) / CELL, 0), GRID - 1.001);
   const i = Math.floor(gx);
@@ -99,7 +60,7 @@ function densityAt(x: number, z: number) {
 function makeTextures() {
   const { heights } = getWorld();
   const { colors } = getGround();
-  const density = getDensity();
+  const density = getGrassDensity();
 
   // Exact heights, read with texelFetch and filtered in the shader to match heightAt().
   const height = new THREE.DataTexture(heights, GRID, GRID, THREE.RedFormat, THREE.FloatType);
@@ -209,14 +170,13 @@ function bladeMaterial(tex: ReturnType<typeof makeTextures>, tile: number) {
           vec2 g = clamp((w + HALF_W) / CELL_SIZE, vec2(0.0), vec2(GRID_N - 1.001));
           vec4 ground = texture2D(uGroundTex, (g + 0.5) / GRID_N);
 
-          // Patches of taller, thicker grass with thinner gaps between them.
+          // Full cover wherever the ground is grassy; patches only vary the height.
           float patchN = gNoise(w * 0.38 + 7.3) * 0.6 + gNoise(w * 0.09 - 2.1) * 0.6;
-          float keep = step(aRand.x, ground.a * (0.45 + 0.7 * patchN));
-          // Between the camera and the car, blades get short and sparse so the ground reads.
+          float keep = step(aRand.x, ground.a * (0.9 + 0.35 * patchN));
+          // Between the camera and the car, blades are a little shorter so they don't block the view.
           float nearCam = smoothstep(6.0, 12.0, length(w - cameraPosition.xz));
-          keep *= step(fract(aRand.x * 7.13), mix(0.35, 1.0, nearCam));
           float edge = 1.0 - smoothstep(uField.z * 0.82, uField.z, length(rel));
-          float h = 1.4 * (0.38 + 0.5 * aRand.y) * (0.55 + 0.8 * patchN) * mix(0.35, 1.0, nearCam) * keep * edge;
+          float h = 1.4 * (0.38 + 0.5 * aRand.y) * (0.55 + 0.8 * patchN) * mix(0.6, 1.0, nearCam) * keep * edge;
 
           vec4 trail = texture2D(uTrailTex, w / TRAIL_SIZE);
           float flat_ = trail.r;
@@ -244,7 +204,7 @@ function bladeMaterial(tex: ReturnType<typeof makeTextures>, tile: number) {
           float t = position.y;
           float hor = h * (1.0 - cos(B * t)) / B;
           float ver = h * sin(B * t) / B;
-          float wdt = (0.055 + 0.04 * aRand.y) * min(1.0, h * 4.0);
+          float wdt = (0.08 + 0.05 * aRand.y) * min(1.0, h * 4.0);
           vec2 wd = vec2(-bd.y, bd.x);
 
           gPos = vec3(w.x, gHeight(g) - 0.04, w.y) + vec3(bd.x * hor, ver, bd.y * hor) + vec3(wd.x, 0.0, wd.y) * position.x * wdt;
@@ -252,9 +212,11 @@ function bladeMaterial(tex: ReturnType<typeof makeTextures>, tile: number) {
           gNrm = normalize(vec3(bd.x, 1.4, bd.y));
 
           vec3 gc = pow(ground.rgb, vec3(2.2));
-          vec3 root = gc * 0.5;
-          vec3 tip = mix(gc * 1.45, vec3(0.86, 0.8, 0.38), 0.15 + 0.25 * aRand.w * patchN);
-          gCol = mix(root, tip, t) * (0.85 + 0.3 * aRand.y) * (1.0 - 0.18 * flat_);        }`,
+          // Roots match the shadowed ground under the field (IslandTerrain), fading up to a bright tip.
+          vec3 root = gc * 0.16;
+          vec3 tip = mix(gc * 1.5, vec3(0.86, 0.8, 0.38), 0.15 + 0.25 * aRand.w * patchN);
+          gCol = mix(root, tip, smoothstep(0.0, 1.0, t)) * (0.85 + 0.3 * aRand.y) * (1.0 - 0.18 * flat_);
+        }`,
       )
       .replace("#include <color_vertex>", "grassBlade();\nvColor = vec4(gCol, 1.0);")
       .replace("#include <beginnormal_vertex>", "vec3 objectNormal = gNrm;")
@@ -288,7 +250,7 @@ function groundHit(camera: THREE.Camera, nx: number, ny: number, gy: number, out
  * footprint is a symmetric trapezoid, so the centre lies on its axis between
  * the near and far edge midpoints.
  */
-function footprintCircle(camera: THREE.Camera, gy: number) {
+function footprintCircle(camera: THREE.Camera, gy: number, solid: number) {
   const [bl, br, tl, tr] = corners;
   groundHit(camera, -1, -1, gy, bl);
   groundHit(camera, 1, -1, gy, br);
@@ -301,7 +263,10 @@ function footprintCircle(camera: THREE.Camera, gy: number) {
   const len = Math.hypot(fx - nx, fz - nz) || 1;
   const wn = bl.distanceTo(br) / 2;
   const wf = tl.distanceTo(tr) / 2;
-  const t = Math.max(0, Math.min(len, (len * len + wf * wf - wn * wn) / (2 * len)));
+  let t = Math.max(0, Math.min(len, (len * len + wf * wf - wn * wn) / (2 * len)));
+  // If the field can't hold the whole view, keep the near edge (biggest on screen) inside
+  // its solid part and let the far distance go instead.
+  t = Math.min(t, Math.sqrt(Math.max(0, solid * solid - wn * wn)));
   return {
     x: nx + ((fx - nx) / len) * t,
     z: nz + ((fz - nz) / len) * t,
@@ -483,7 +448,7 @@ export function Grass({ quality }: { quality: "high" | "low" }) {
   useFrame(({ camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
     // Centre the field on everything the camera can see, but keep the car well inside it.
-    const fp = footprintCircle(camera, vehicle.y);
+    const fp = footprintCircle(camera, vehicle.y, cfg.radius * 0.8);
     let cx = fp.x;
     let cz = fp.z;
     const ox = cx - vehicle.x;
@@ -499,7 +464,7 @@ export function Grass({ quality }: { quality: "high" | "low" }) {
   });
 
   return (
-    <group>
+    <group renderOrder={DRAW_ORDER.clutter}>
       <mesh geometry={field.geo} material={field.mat} frustumCulled={false} receiveShadow />
       <Clippings count={cfg.clippings} />
     </group>

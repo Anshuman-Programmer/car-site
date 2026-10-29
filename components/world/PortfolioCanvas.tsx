@@ -13,6 +13,9 @@ import { Vegetation } from "./Vegetation";
 import { Grass } from "./Grass";
 import { Buildings } from "./Buildings";
 import { Props } from "./Props";
+import { Course } from "./Course";
+import { Debris } from "./Debris";
+import { PostFX } from "./PostFX";
 import { Vehicle } from "./Vehicle";
 import { CameraRig } from "./CameraRig";
 import { LocationMarkers, LocationSystem } from "./Locations";
@@ -32,7 +35,8 @@ function createRenderer(defaults: { canvas: unknown }, antialias: boolean) {
   let lastError: unknown;
   for (const a of attempts) {
     try {
-      const r = new THREE.WebGLRenderer({ ...(defaults as THREE.WebGLRendererParameters), canvas: defaults.canvas as HTMLCanvasElement, ...a });
+      // Stencil for the car's see-through outline (xray.ts).
+      const r = new THREE.WebGLRenderer({ ...(defaults as THREE.WebGLRendererParameters), canvas: defaults.canvas as HTMLCanvasElement, stencil: true, ...a });
       r.toneMapping = THREE.ACESFilmicToneMapping;
       r.toneMappingExposure = 1;
       return r;
@@ -78,11 +82,14 @@ function World() {
       <Grass quality={quality} />
       <Buildings />
       <Props />
+      <Course />
+      <Debris />
       <LocationMarkers />
       <LocationSystem />
       <Vehicle />
       <EnvironmentEffects quality={quality} />
       <CameraRig />
+      {quality === "high" && <PostFX />}
     </>
   );
 }

@@ -8,6 +8,7 @@ import {
   LAND_BASE,
   PADS,
   ROADS,
+  SEA_LEVEL,
   STREAM_POINTS,
   WORLD_HALF,
   type RoadDef,
@@ -57,6 +58,8 @@ export interface World {
   stream: StreamSample[];
   /** Index in `stream` where the water leaves the cliff. */
   fallIndex: number;
+  /** Height of the drawn water surface over each cell: the sea, or the lake and stream where they are. */
+  water: Float32Array;
   bridge: { samples: RoadSample[]; halfWidth: number; minX: number; maxX: number; minZ: number; maxZ: number } | null;
 }
 
@@ -325,6 +328,20 @@ function bake(): World {
     }
   }
 
+  // Water the car stops at, matching the meshes in Water.tsx: the lake disc reaches 1.12 radii, the stream ribbon 3.25 m each side.
+  const water = new Float32Array(GRID * GRID).fill(SEA_LEVEL);
+  forCells(lx, lz, 45, (k) => {
+    const dx = fromGrid(k % GRID) - lx;
+    const dz = fromGrid(Math.floor(k / GRID)) - lz;
+    if (Math.hypot(dx, dz) < lakeRadius(Math.atan2(dz, dx)) * 1.12) water[k] = LAKE_LEVEL;
+  });
+  for (let n = 0; n <= fallIndex; n++) {
+    const s = stream[n];
+    forCells(s.x, s.z, 3.25 + CELL / 2, (k) => {
+      water[k] = Math.max(water[k], s.y);
+    });
+  }
+
   // Bridge where the loop crosses the stream.
   let bridge: World["bridge"] = null;
   const loop = roads[0];
@@ -354,7 +371,7 @@ function bake(): World {
   // Non-bridge road samples sit on the final terrain.
   for (const r of roads) for (const s of r.samples) if (!s.bridge) s.y = sampleGrid(heights, s.x, s.z);
 
-  return { heights, roadEdge, roads, stream, fallIndex, bridge };
+  return { heights, roadEdge, roads, stream, fallIndex, water, bridge };
 }
 
 // ------------------------------------------------------------------ queries
@@ -367,10 +384,26 @@ export function roadEdgeAt(x: number, z: number) {
   return sampleGrid(getWorld().roadEdge, x, z);
 }
 
-/** Drivable surface: terrain, or the bridge deck where there is one. */
+/** A raised drivable shape on top of the terrain (course rocks, logs, jumps, a garage floor), inside a bounding box. */
+interface SurfaceOverlay {
+  fn: (x: number, z: number) => number;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+const overlays: SurfaceOverlay[] = [];
+
+export function addSurfaceOverlay(o: SurfaceOverlay) {
+  overlays.push(o);
+}
+
+/** Drivable surface: terrain, the bridge deck where there is one, or a raised overlay. */
 export function surfaceAt(x: number, z: number) {
   const w = getWorld();
-  const h = sampleGrid(w.heights, x, z);
+  let h = sampleGrid(w.heights, x, z);
+  for (const o of overlays) if (x > o.minX && x < o.maxX && z > o.minZ && z < o.maxZ) h = Math.max(h, o.fn(x, z));
   const b = w.bridge;
   if (b && x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ) {
     let best: RoadSample | null = null;
@@ -391,10 +424,9 @@ export function surfaceAt(x: number, z: number) {
   return h;
 }
 
-export function isDrivable(x: number, z: number) {
-  const { t, b } = coastT(x, z);
-  if (t > lerp(0.915, 0.97, b)) return false;
-  return surfaceAt(x, z) >= LAKE_LEVEL + 0.25;
+/** Height of the water surface: the sea, or the lake and stream where they are. */
+export function waterAt(x: number, z: number) {
+  return sampleGrid(getWorld().water, x, z);
 }
 
 export function nearestRoadSample(x: number, z: number, includeHidden = false) {

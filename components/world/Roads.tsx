@@ -5,6 +5,8 @@ import * as THREE from "three";
 import { Text } from "@react-three/drei";
 import { getWorld, heightAt, type Road } from "@/lib/world/terrain";
 import { lampPosts, signposts } from "@/lib/world/structures";
+import { breakKey } from "@/lib/world/breakables";
+import { useBrokenProps } from "./useBreakables";
 import { palette } from "./materials";
 
 const FONT = "/fonts/bricolage-700.woff";
@@ -160,18 +162,25 @@ function Bridge() {
 }
 
 function Lamps() {
-  const lamps = useMemo(
-    () => lampPosts().map((l) => ({ ...l, y: heightAt(l.x, l.z) })),
-    [],
-  );
+  const broken = useBrokenProps();
+  const lamps = useMemo(() => lampPosts().map((l) => ({ ...l, y: heightAt(l.x, l.z) })), []);
+  // Broken lamps collapse to zero scale; Debris draws their pieces.
+  const parts = useMemo(() => {
+    const live = lamps.map((l, i) => ({ ...l, s: broken.has(breakKey("lamp", i)) ? 0 : 1 }));
+    return {
+      posts: live.map((l) => ({ ...l, y: l.y + 1.45 })),
+      caps: live.map((l) => ({ ...l, y: l.y + 3.4, yaw: l.yaw + Math.PI / 4 })),
+      heads: live.map((l) => ({ ...l, y: l.y + 3.05 })),
+    };
+  }, [lamps, broken]);
   const postRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
   const glowRef = useRef<THREE.InstancedMesh>(null);
   const capRef = useRef<THREE.InstancedMesh>(null);
-  useInstances(postRef, lamps.map((l) => ({ ...l, y: l.y + 1.45 })));
-  useInstances(capRef, lamps.map((l) => ({ ...l, y: l.y + 3.4, yaw: l.yaw + Math.PI / 4 })));
-  useInstances(headRef, lamps.map((l) => ({ ...l, y: l.y + 3.05 })));
-  useInstances(glowRef, lamps.map((l) => ({ ...l, y: l.y + 3.05 })));
+  useInstances(postRef, parts.posts);
+  useInstances(capRef, parts.caps);
+  useInstances(headRef, parts.heads);
+  useInstances(glowRef, parts.heads);
   return (
     <group>
       <instancedMesh ref={postRef} args={[undefined, undefined, lamps.length]} castShadow>
@@ -195,11 +204,12 @@ function Lamps() {
 }
 
 function Signposts() {
+  const broken = useBrokenProps();
   const signs = useMemo(() => signposts().map((s) => ({ ...s, y: heightAt(s.x, s.z) })), []);
   return (
     <group>
-      {signs.map((s) => (
-        <group key={s.label} position={[s.x, s.y, s.z]} rotation={[0, s.yaw, 0]}>
+      {signs.map((s, i) => (
+        <group key={s.label} position={[s.x, s.y, s.z]} rotation={[0, s.yaw, 0]} visible={!broken.has(breakKey("sign", i))}>
           <mesh position={[0, 1.2, 0]} castShadow>
             <boxGeometry args={[0.16, 2.4, 0.16]} />
             <meshStandardMaterial color={palette.woodDark} />

@@ -1,4 +1,6 @@
-import { getWorld, isDrivable, surfaceAt, coastT, heightAt, roadEdgeAt } from "../lib/world/terrain";
+import { getWorld, surfaceAt, coastT, heightAt, roadEdgeAt, waterAt } from "../lib/world/terrain";
+// The whole world is drivable now; "drivable" here means dry land.
+const isDrivable = (x: number, z: number) => surfaceAt(x, z) >= waterAt(x, z);
 import { destinations } from "../data/locations";
 import { islandRadius } from "../lib/world/layout";
 const t0 = performance.now();

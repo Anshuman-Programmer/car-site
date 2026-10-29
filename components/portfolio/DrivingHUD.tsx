@@ -460,7 +460,7 @@ export function DrivingHUD() {
         <WaypointInfo />
       </div>
       <div
-        className={`pointer-events-none fixed inset-x-0 z-20 flex justify-center px-3 ${isTouch ? "bottom-40" : "bottom-6"}`}
+        className={`pointer-events-none fixed inset-x-0 z-20 flex justify-center px-3 ${isTouch ? "bottom-44" : "bottom-6"}`}
         aria-live="polite"
       >
         <InteractionPrompt />

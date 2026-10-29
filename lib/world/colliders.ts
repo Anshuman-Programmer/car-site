@@ -20,10 +20,13 @@ interface BoxCollider {
 export type Collider = CircleCollider | BoxCollider;
 
 const CELL = 8;
+/** Largest circle resolveCircle is asked about. Colliders are filed this much wider, so one cell lookup sees everything it could touch. */
+const QUERY_R = 1;
 const grid = new Map<number, Collider[]>();
 const key = (i: number, j: number) => (i + 512) * 1024 + (j + 512);
 
 function insert(c: Collider, extent: number) {
+  extent += QUERY_R;
   const i0 = Math.floor((c.x - extent) / CELL);
   const i1 = Math.floor((c.x + extent) / CELL);
   const j0 = Math.floor((c.z - extent) / CELL);
